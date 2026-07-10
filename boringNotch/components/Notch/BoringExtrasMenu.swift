@@ -43,25 +43,21 @@ struct BoringExtrasMenu : View {
     var github: some View {
         BoringLargeButtons(
             action: {
-                NSWorkspace.shared.open(productPage)
+                if let url = URL(string: "https://github.com/TheBoredTeam/boring.notch") {
+                    NSWorkspace.shared.open(url)
+                }
             },
             icon: Image(.github),
             title: "Checkout"
         )
     }
     
-    var donate: some View {
-        BoringLargeButtons(
-            action: {
-                NSWorkspace.shared.open(sponsorPage)
-            },
-            icon: Image(systemName: "heart.fill"),
-            title: "Love Us"
-        )
-    }
-    
     var settings: some View {
-        SettingsLink(label: {
+        Button(action: {
+            DispatchQueue.main.async {
+                SettingsWindowController.shared.showWindow()
+            }
+        }) {
             ZStack {
                 RoundedRectangle(cornerRadius: 12.0).fill(.black).frame(width: 70, height: 70)
                 VStack(spacing: 8) {
@@ -70,7 +66,7 @@ struct BoringExtrasMenu : View {
                     Text("Settings").font(.body)
                 }
             }
-        })
+        }
         .buttonStyle(PlainButtonStyle()).shadow(color: .black.opacity(0.5), radius: 10)
     }
     

@@ -5,73 +5,77 @@
 //  Created by Richard Kunkli on 06/09/2024.
 //
 
-import Accessibility
-import Cocoa
-import CoreAudio
+import Foundation
+import Combine
 import Defaults
 import MacroVisionKit
-import SwiftUI
 
-class FullscreenMediaDetector: ObservableObject {
-    let detector: MacroVisionKit
-    @Published var currentAppInFullScreen: Bool = false {
-        didSet {
-            objectWillChange.send()
+@MainActor
+final class FullscreenMediaDetector: ObservableObject {
+    static let shared = FullscreenMediaDetector()
+    
+    @Published var fullscreenStatus: [String: Bool] = [:]
+    
+    private var monitorTask: Task<Void, Never>?
+    private var settingCancellable: AnyCancellable?
+    
+    private init() {
+        settingCancellable = Defaults.publisher(.hideNotchOption)
+            .map(\.newValue)
+            .map { $0 != .never }
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] isEnabled in
+                self?.setMonitoringEnabled(isEnabled)
+            }
+        setMonitoringEnabled(Defaults[.hideNotchOption] != .never)
+    }
+    
+    deinit {
+        monitorTask?.cancel()
+        settingCancellable?.cancel()
+    }
+
+    private func setMonitoringEnabled(_ isEnabled: Bool) {
+        if isEnabled {
+            startMonitoring()
+        } else {
+            monitorTask?.cancel()
+            monitorTask = nil
+            if !fullscreenStatus.isEmpty {
+                fullscreenStatus = [:]
+            }
         }
     }
-    
-    var nowPlaying: NowPlaying = .init()
-    
-    init() {
-        self.detector = MacroVisionKit.shared
-        detector.configuration.includeSystemApps = true
-        setupNotificationObservers()
-    }
-    
-    private func setupNotificationObservers() {
-        let notificationCenter = NSWorkspace.shared.notificationCenter
-        let notifications: [(Notification.Name, Selector)] = [
-            (NSWorkspace.activeSpaceDidChangeNotification, #selector(activeSpaceDidChange(_:))),
-            (NSApplication.didChangeScreenParametersNotification, #selector(applicationDidChangeScreenMode(_:))),
-            (NSWorkspace.didActivateApplicationNotification, #selector(applicationDidChangeScreenMode(_:))),
-            (NSWorkspace.didDeactivateApplicationNotification, #selector(applicationDidChangeScreenMode(_:))), // Listen for when an application is deactivated
-            (NSApplication.didBecomeActiveNotification, #selector(applicationDidChangeScreenMode(_:))), // Listen for when the application becomes active
-            (NSApplication.didResignActiveNotification, #selector(applicationDidChangeScreenMode(_:))) // Listen for when the application resigns active status
-        ]
-        
-        for (name, selector) in notifications {
-            notificationCenter.addObserver(self, selector: selector, name: name, object: nil)
-        }
-    }
-    
-    @objc func activeSpaceDidChange(_ notification: Notification) {
-        checkFullScreenStatus()
-    }
-    
-    @objc func applicationDidChangeScreenMode(_ notification: Notification) {
-        checkFullScreenStatus()
-    }
-    
-    func checkFullScreenStatus() {
-        DispatchQueue.main.async {
-            if let frontmostApp = NSWorkspace.shared.frontmostApplication {
-                let sameAsNowPlaying = !Defaults[.alwaysHideInFullscreen] ? frontmostApp.bundleIdentifier == self.nowPlaying.appBundleIdentifier : true
-                
-                NSLog(Defaults[.enableFullscreenMediaDetection] ? "Fullscreen media detection is enabled." : "Fullscreen media detection is disabled.")
-                NSLog("Determine if app is in fullscreen: \(String(describing: sameAsNowPlaying))")
-                
-                self.currentAppInFullScreen = self.isAppFullScreen(frontmostApp) && sameAsNowPlaying
+
+    private func startMonitoring() {
+        guard monitorTask == nil else { return }
+        monitorTask = Task { @MainActor in
+            let stream = await FullScreenMonitor.shared.spaceChanges()
+            for await spaces in stream {
+                guard !Task.isCancelled else { break }
+                updateStatus(with: spaces)
             }
         }
     }
     
-    func isAppFullScreen(_ app: NSRunningApplication) -> Bool {
-        let fullscreenApps = detector.detectFullscreenApps(debug: false)
-        return fullscreenApps.contains {
-            guard $0.bundleIdentifier != "com.apple.finder" else { return false }
-            let isSameApp = $0.bundleIdentifier == app.bundleIdentifier
-            if isSameApp { NSLog("Same app found! (Fullscreen: \(String(describing: $0.debugDescription)))") }
-            return isSameApp
+    private func updateStatus(with spaces: [MacroVisionKit.FullScreenMonitor.SpaceInfo]) {
+        var newStatus: [String: Bool] = [:]
+        
+        for space in spaces {
+            if let uuid = space.screenUUID {
+                let shouldDetect: Bool
+                if Defaults[.hideNotchOption] == .nowPlayingOnly, let musicSourceBundle = MusicManager.shared.bundleIdentifier  {
+                    shouldDetect = space.runningApps.contains(musicSourceBundle)
+                } else {
+                    shouldDetect = true
+                }
+                newStatus[uuid] = shouldDetect
+            }
+        }
+        
+        if fullscreenStatus != newStatus {
+            fullscreenStatus = newStatus
         }
     }
 }

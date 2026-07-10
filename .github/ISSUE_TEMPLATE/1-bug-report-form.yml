@@ -1,7 +1,10 @@
+---
 name: Bug Report
 description: File a bug report.
-title: "[Bug] "
-labels: ["bug", "unconfirmed"]
+title: '[Bug] '
+type: Bug
+labels:
+  - unconfirmed
 body:
   - type: markdown
     attributes:
@@ -11,7 +14,9 @@ body:
     id: what-happened
     attributes:
       label: What happened? What are the steps to reproduce the issue?
-      description: Describe the bug and include the steps to replicate the issue. Issues with images or videos will be resolved faster.
+      description: >-
+        Describe the bug and include the steps to replicate the issue. Issues
+        with images or videos will be resolved faster.
       placeholder: Clearly explain the issue. Please limit each post to one issue.
     validations:
       required: true
@@ -25,28 +30,59 @@ body:
   - type: dropdown
     id: version
     attributes:
-      label: BoringNotch Version
-      description: What version of our software are you running?
+      label: Boring Notch Version
+      description: >-
+        What version of our software are you running? (Go to ✦ in the menu bar >
+        Settings > About)
       options:
-        - 2.3
-        - 2.2
-        - 2.1
-        - 2.0
-        - 1.8
+        - Select a version
+        - v2.7.3
+        - v2.7.2
+        - v2.7.1
+        - v2.7
+        - v2.7-rc.3
+        - v2.6
     validations:
       required: true
   - type: input
     id: operating-system
     attributes:
-      label: MacOS Version
+      label: macOS Version
       description: Go to  > About This Mac
     validations:
       required: true
+  - type: dropdown
+    id: music-source
+    attributes:
+      label: Music Source? (If relevant)
+      description: >-
+         If this issue is related to music, what music source did you select in Boring Notch settings?
+      options:
+        - Now Playing
+        - Apple Music
+        - Spotify
+        - YouTube Music
+    validations:
+      required: false
+  - type: input
+    id: music-app
+    attributes:
+      label: Music App (If using Now Playing)
+    validations:
+      required: false
+  - type: input
+    id: music-website
+    attributes:
+      label: Website (If using browser for music)
+    validations:
+      required: false
   - type: textarea
     id: logs
     attributes:
       label: Relevant log output
-      description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
+      description: >-
+        Please copy and paste any relevant log output. This will be
+        automatically formatted into code, so no need for backticks.
       render: shell
   - type: checkboxes
     id: checks
